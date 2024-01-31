@@ -34,7 +34,7 @@ app = Flask(__name__)
 handler = WebhookHandler(channel_secret)
 configuration = Configuration(access_token=channel_access_token)
 
-ai_model = "hjmr_gpt35"
+ai_model = ("mulabo_gpt35")
 ai = AzureOpenAI(azure_endpoint=azure_openai_endpoint, api_key=azure_openai_key, api_version="2023-05-15")
 
 system_role = """
