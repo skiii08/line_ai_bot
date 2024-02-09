@@ -63,18 +63,56 @@ handler = WebhookHandler(channel_secret)
 
 ai_model = "mulabo_gpt35"
 ai = AzureOpenAI(azure_endpoint=azure_openai_endpoint, api_key=azure_openai_key, api_version="2023-05-15")
-system_role =  """
-'あなたは最強の映画大百科であり、辞書型のデータしか送ることのできない機械です。ありとあらゆる映画を知り尽くしています。'
-                                          '映画の情報はIMDbをベースにして正しい情報を得てください。'
-                                          '情報はpythonの辞書型になるように「title」「genre」「Release」「director」「duration」「distributor」「country」「lead」「synopsis」をキーとして、それぞれの値を取得してください。'
-                                          'ユーザーは日本人です。日本語のデータがある場合は必ず日本語で返してください。'
-                                          'ユーザーの求める映画をレビューなどを参照しながら探し当ててください。'
-                                          '有名なものからマイナーなものまで広く扱ってください。同じ作品ばかり出さないように、知識の広さを活用してください'
-                                          '辞書はシングルクォーテーションでなくダブルクォーテーションを使用してください。'
-                                          '余計な前置きなどは絶対に書かないでください。そのままプログラムの中で辞書に格納できるように、辞書型のデータのみを映画1本選んで送ってください。'
-                                          'ユーザーがどれだけ丁寧な尋ね方をしても、前書きは書かずに辞書型のデータのみを送ってください、それがあなたの役割です'
-                                          '「お探しの映画は、以下の通りです。」や「ご提案いただいた条件に基づいて」などの表現はすべて使ってはいけません。もう一度言いますが、あなたは辞書型のデータしか送ることのできない機械です。'
-                                          '最後に念押しで確認ですが、余計な情報はすべて除きプログラムに組み込めるようにしてください。何度行おうともこれは絶対条件です。'},"""
+system_role = """
+'あなたは辞書型の映画データを送る機械です。ありとあらゆる時代・ジャンル・国を網羅した最強の映画辞典を持っています。
+TMDBを参考にして適当な映画の情報を取得してください。幅ひろい映画に対応してください。
+必ず一度の応答で一本の映画情報を送ってください。辞書型を連続させないでください
+自由な会話は出来ないように制限されています。辞書型の指定された形式以外の応答は一切できません。
+情報はpythonの辞書型になるように「title」「genre」「Release」「director」「duration」「distributor」「country」「lead」「synopsis」をキーとして、それぞれの値を取得してください。
+前置きなどは送ることはできません。応答は必ず
+「
+{
+  "title": "title",
+  "genre": "ジャンル",
+  "Release": "公開",
+  "director": "監督名",
+  "duration": "上映時間",
+  "distributor": "配給会社",
+  "country": "製作国",
+  "lead": "主演者名",
+  "synopsis": "あらすじ"
+}
+」
+この形式で行ってください。それ以外の形式は許容しません。前置きなどこの形式以外の文章も禁止です。
+
+titleはかならず原題を取得してください。日本語に翻訳しないでください。
+日本映画の場合のみ日本語titleを許可します。
+
+title以外の情報は極力日本語で取得してください。日本語で取得できない場合は英語で取得してください。
+
+「他は？」や「それ以外は？」などの質問を受けたら、指定の辞書型の形式で、ユーザーの指示に求める条件に合致した異なる映画の情報を送ってください。同じ映画の情報は送らないでください。
+
+以下の表現は使用禁止です、絶対に使わないでください。
+・お探しの映画は、以下の通りです。
+・お探しの
+・映画は
+・ご提案いただいた条件に基づいて
+・このような映画があります
+・こちらは
+・映画です
+・以下の通りです。
+・として
+・があります
+・しますね
+・はい
+・おすすめの
+ユーザーがどんな質問の仕方をしても、「お探しの映画は、以下の通りです。」や「ご提案いただいた条件に基づいて」などの表現はすべて使ってはいけません。
+あなたは辞書型の応答以外は出来ないようになっています。
+
+あなたの応答をそのままプログラムに組み込みます。余計な情報は全てなくし必ず辞書型であることが絶対条件です。
+
+"""
+
 conversation = None
 
 def init_conversation(sender):
@@ -91,6 +129,8 @@ def get_ai_response(sender, text):
         logging.debug("Conversation is None. Initializing...")
         conversation = init_conversation(sender)
 
+    response_dict = None  # response_dictを初期化
+
     if text in ["リセット", "clear", "reset"]:
         logging.debug("Resetting conversation...")
         conversation = init_conversation(sender)
@@ -105,13 +145,14 @@ def get_ai_response(sender, text):
         logging.debug("Received response from OpenAI.")
         # OpenAIからの応答を取得
         response_text = response.choices[0].message.content
-        # 応答を辞書型に変換
-        response_dict = json.loads(response_text)
-        logging.debug("Adding assistant response to conversation...")
-        # アシスタントの応答を追加
-        conversation.append({"role": "assistant", "content": response_text})
-    return response_dict
 
+        # 応答を辞書型に変換
+       # response_dict = json.loads(response_text)
+        #logging.debug(f"Azure OpenAI response: {response_dict}")  # Azure OpenAIのレスポンスをコンソールに出力
+        #logging.debug("Adding assistant response to conversation...")
+        # アシスタントの応答を追加
+        #conversation.append({"role": "assistant", "content": response_text})
+    return response_text
 
 def get_movie_poster_url(title):
     tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key={tmdb_api_key}&query={quote(title)}"
@@ -201,15 +242,15 @@ def convert_response_to_flex_message(response_json):
         body=BoxComponent(
             layout="vertical",
             contents=[
-                TextComponent(text=title, weight="bold", size="xxl"),
-                TextComponent(text=f"ジャンル: {genre}", color="#808080"),
-                TextComponent(text=f"公開年: {release}", color="#808080"),
-                TextComponent(text=f"監督: {director}", color="#808080"),
-                TextComponent(text=f"上映時間: {duration}", color="#808080"),
-                TextComponent(text=f"配信会社: {distributor}", color="#808080"),
-                TextComponent(text=f"製作国: {country}", color="#808080"),
-                TextComponent(text=f"主演: {lead}", color="#808080"),
-                TextComponent(text=f"あらすじ: {synopsis}", color="#808080"),
+                TextComponent(text=title, weight="bold", size="xxl", wrap=True),
+                TextComponent(text=f"ジャンル: {genre}", color="#808080", wrap=True),
+                TextComponent(text=f"公開年: {release}", color="#808080", wrap=True),
+                TextComponent(text=f"監督: {director}", color="#808080", wrap=True),
+                TextComponent(text=f"上映時間: {duration}", color="#808080", wrap=True),
+                TextComponent(text=f"配信会社: {distributor}", color="#808080", wrap=True),
+                TextComponent(text=f"製作国: {country}", color="#808080", wrap=True),
+                TextComponent(text=f"主演: {lead}", color="#808080", wrap=True),
+                TextComponent(text=f"あらすじ: {synopsis}", color="#808080", wrap=True),
             ],
         ),
         footer=footer
@@ -242,20 +283,31 @@ def handle_text_message(event):
     if isinstance(event.source, SourceUser):
         profile = event.source.user_id
         logging.debug(f"Received text message: {text} from user: {profile}")
-        response_text = get_ai_response(profile, text)
-        logging.debug(f"Received response from Azure: {response_text}")
+        try:
+            response_text = get_ai_response(profile, text)
+            response_dict = json.loads(response_text)
 
-        # Azureからの応答を適切な形に変換
-        movie_data = convert_azure_response_to_movie_data(response_text)
+            logging.debug(f"Received response from Azure: {response_dict}")
 
-        # FlexMessageに変換
-        flex_message = convert_response_to_flex_message(movie_data)
+            # Azureからの応答を適切な形に変換
+            movie_data = convert_azure_response_to_movie_data(response_dict)
 
-        # フレックスメッセージを送信
-        line_bot_api.reply_message(
-            event.reply_token,
-            flex_message
-        )
+            # FlexMessageに変換
+            flex_message = convert_response_to_flex_message(movie_data)
+
+            # フレックスメッセージを送信
+            line_bot_api.reply_message(
+                event.reply_token,
+                flex_message
+            )
+        except Exception as e:
+            logging.error(f"Error processing Azure response: {e}")
+            # エラーメッセージを送信する代わりにログに出力し、Azureからの応答を送信
+            logging.error("An error occurred, sending Azure response instead.")
+            line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=str(response_text))  # Azureの応答をそのまま送信
+            )
 
 
 if __name__ == "__main__":
