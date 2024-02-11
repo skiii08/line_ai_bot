@@ -27,12 +27,11 @@ from linebot.models import (
 
 from openai import AzureOpenAI
 
-from linebot import LineBotApi  # channel_access_tokenの定義よりも後にインポートする
+from linebot import LineBotApi
 
 # ログ設定
 logging.basicConfig(level=logging.DEBUG)
 
-# get LINE credentials from environment variables
 channel_access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
 channel_secret = os.environ.get("LINE_CHANNEL_SECRET")
 
@@ -40,9 +39,8 @@ if channel_access_token is None or channel_secret is None:
     logging.error("Specify LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET as environment variable.")
     sys.exit(1)
 
-line_bot_api = LineBotApi(channel_access_token)  # channel_access_tokenの定義よりも後に行う
+line_bot_api = LineBotApi(channel_access_token)
 
-# get Azure OpenAI credentials from environment variables
 azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 azure_openai_key = os.getenv("AZURE_OPENAI_KEY")
 
@@ -51,7 +49,6 @@ if azure_openai_endpoint is None or azure_openai_key is None:
         "Please set the environment variables AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY to your Azure OpenAI endpoint and API key."
     )
 
-# TMDb API key
 tmdb_api_key = os.getenv("TMDB_API_KEY")
 
 if tmdb_api_key is None:
@@ -65,7 +62,7 @@ ai_model = "mulabo_gpt35"
 ai = AzureOpenAI(azure_endpoint=azure_openai_endpoint, api_key=azure_openai_key, api_version="2023-05-15")
 system_role = """
 'あなたは辞書型の映画データを送る機械です。ありとあらゆる時代・ジャンル・国を網羅した最強の映画辞典を持っています。
-TMDBを参考にして適当な映画の情報を取得してください。幅ひろい映画に対応してください。
+あなたはTMDBと同等の情報量を持っています。ユーザーの求めに応じて幅ひろい映画に対応してください。
 必ず一度の応答で一本の映画情報を送ってください。辞書型を連続させないでください
 自由な会話は出来ないように制限されています。辞書型の指定された形式以外の応答は一切できません。
 情報はpythonの辞書型になるように「title」「genre」「Release」「director」「duration」「distributor」「country」「lead」「synopsis」をキーとして、それぞれの値を取得してください。
@@ -85,10 +82,9 @@ TMDBを参考にして適当な映画の情報を取得してください。幅�
 」
 この形式で行ってください。それ以外の形式は許容しません。前置きなどこの形式以外の文章も禁止です。
 
-titleはかならず原題を取得してください。日本語に翻訳しないでください。
-日本映画の場合のみ日本語titleを許可します。
+titleはかならず原題を取得してください。日本語に翻訳しないでください。日本映画の場合のみ日本語titleを許可します。
 
-title以外の情報は極力日本語で取得してください。日本語で取得できない場合は英語で取得してください。
+title以外の情報は極力日本語で出力してください。日本語で取得できない場合は英語で出力してください。
 
 「他は？」や「それ以外は？」などの質問を受けたら、指定の辞書型の形式で、ユーザーの指示に求める条件に合致した異なる映画の情報を送ってください。同じ映画の情報は送らないでください。
 
@@ -106,11 +102,12 @@ title以外の情報は極力日本語で取得してください。日本語で
 ・しますね
 ・はい
 ・おすすめの
+
+最後に念押しです。
 ユーザーがどんな質問の仕方をしても、「お探しの映画は、以下の通りです。」や「ご提案いただいた条件に基づいて」などの表現はすべて使ってはいけません。
 あなたは辞書型の応答以外は出来ないようになっています。
 
 あなたの応答をそのままプログラムに組み込みます。余計な情報は全てなくし必ず辞書型であることが絶対条件です。
-
 """
 
 conversation = None
@@ -129,7 +126,6 @@ def get_ai_response(sender, text):
         logging.debug("Conversation is None. Initializing...")
         conversation = init_conversation(sender)
 
-    response_dict = None  # response_dictを初期化
 
     if text in ["リセット", "clear", "reset"]:
         logging.debug("Resetting conversation...")
@@ -137,23 +133,17 @@ def get_ai_response(sender, text):
         response_text = "会話をリセットしました。"
     else:
         logging.debug("Adding user message to conversation...")
-        # ユーザーのメッセージとして追加
         conversation.append({"role": "user", "content": text})
         logging.debug("Sending request to OpenAI...")
-        # OpenAIにリクエストを送信
+
         response = ai.chat.completions.create(model=ai_model, messages=conversation)
         logging.debug("Received response from OpenAI.")
-        # OpenAIからの応答を取得
+
         response_text = response.choices[0].message.content
 
-        # 応答を辞書型に変換
-       # response_dict = json.loads(response_text)
-        #logging.debug(f"Azure OpenAI response: {response_dict}")  # Azure OpenAIのレスポンスをコンソールに出力
-        #logging.debug("Adding assistant response to conversation...")
-        # アシスタントの応答を追加
-        #conversation.append({"role": "assistant", "content": response_text})
     return response_text
 
+#ポスターURLを取得する
 def get_movie_poster_url(title):
     tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key={tmdb_api_key}&query={quote(title)}"
 
@@ -170,8 +160,6 @@ def get_movie_poster_url(title):
     return None
 
 def convert_azure_response_to_movie_data(azure_response):
-    # Azureからの応答を適切な形に変換する処理を記述します
-    # ここでは単純に例として提供されたデータをそのまま返します
     return {
         "title": azure_response.get("title", ""),
         "genre": azure_response.get("genre", ""),
@@ -196,17 +184,13 @@ def convert_response_to_flex_message(response_json):
     lead = response_json.get("lead", "")
     synopsis = response_json.get("synopsis", "")
 
-    # Get TMDb poster URL
     poster_url = get_movie_poster_url(title)
     if not poster_url:
-        # ポスターのURLが取得できない場合は、代替のURLを使用するか、エラー処理を行う
-        # 代替のURLを使用する場合は、例えば以下のように設定できる
+        # URLの取得に失敗した時の代替
         poster_url = "https://github.com/skiii08/forImageMap/blob/main/notFound.jpg?raw=true"
 
-    # Get the YouTube trailer URL based on the movie title
     trailer_url = f"https://www.youtube.com/results?search_query={quote(title)}+trailer"
 
-    # Header コンポーネント
     header = BoxComponent(
         layout="vertical",
         contents=[
@@ -219,7 +203,6 @@ def convert_response_to_flex_message(response_json):
         ],
     )
 
-    # Footer コンポーネント
     footer = BoxComponent(
         type="box",
         layout="vertical",
@@ -236,7 +219,6 @@ def convert_response_to_flex_message(response_json):
         ]
     )
 
-    # Bubble コンテナ
     bubble = BubbleContainer(
         header=header,
         body=BoxComponent(
@@ -260,14 +242,11 @@ def convert_response_to_flex_message(response_json):
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    # get X-Line-Signature header value
     signature = request.headers["X-Line-Signature"]
 
-    # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
 
-    # handle webhook body
     try:
         handler.handle(body, signature)
     except InvalidSignatureError as e:
@@ -289,20 +268,16 @@ def handle_text_message(event):
 
             logging.debug(f"Received response from Azure: {response_dict}")
 
-            # Azureからの応答を適切な形に変換
             movie_data = convert_azure_response_to_movie_data(response_dict)
 
-            # FlexMessageに変換
             flex_message = convert_response_to_flex_message(movie_data)
 
-            # フレックスメッセージを送信
             line_bot_api.reply_message(
                 event.reply_token,
                 flex_message
             )
         except Exception as e:
             logging.error(f"Error processing Azure response: {e}")
-            # エラーメッセージを送信する代わりにログに出力し、Azureからの応答を送信
             logging.error("An error occurred, sending Azure response instead.")
             line_bot_api.reply_message(
                 event.reply_token,
